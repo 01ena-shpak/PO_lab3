@@ -9,8 +9,14 @@ int main()
 
     pool.initialize(4);
 
-    std::cout << "[Main] Pool is running. Waiting 3 seconds...\n";
-    std::this_thread::sleep_for(std::chrono::seconds(3));
+    pool.submitTask({ 1, 5 });
+    pool.submitTask({ 2, 2 });
+    pool.submitTask({ 3, 4 });
+    pool.submitTask({ 4, 1 });
+    pool.submitTask({ 5, 3 });
+
+    std::cout << "[Main] Waiting 8 seconds for tasks to be processed...\n";
+    std::this_thread::sleep_for(std::chrono::seconds(8));
 
     std::cout << "[Main] Now terminating pool...\n";
     pool.terminate();
