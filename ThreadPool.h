@@ -31,7 +31,7 @@ public:
     void initialize(size_t workerCount);
     void terminate();
 
-    void submitTask(const Task& task);
+    bool submitTask(const Task& task);
 
 private:
     void workerRoutine(size_t workerId);
@@ -39,7 +39,6 @@ private:
 
 private:
     std::vector<std::thread> workers;
-
     std::priority_queue<Task, std::vector<Task>, TaskComparator> taskQueue;
 
     std::mutex mutex;
@@ -48,4 +47,10 @@ private:
 
     bool initialized = false;
     bool terminated = false;
+
+    int queueTotalSeconds = 0;
+    const int maxQueueSeconds = 50;
+
+    int acceptedTasks = 0;
+    int rejectedTasks = 0;
 };

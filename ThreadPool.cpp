@@ -24,6 +24,9 @@ void ThreadPool::initialize(size_t workerCount)
 
     terminated = false;
     initialized = true;
+    queueTotalSeconds = 0;
+    acceptedTasks = 0;
+    rejectedTasks = 0;
 
     printSafe("[ThreadPool] Initializing pool with " + std::to_string(workerCount) + " workers...");
 
@@ -61,9 +64,11 @@ void ThreadPool::terminate()
     initialized = false;
 
     printSafe("[ThreadPool] Pool terminated successfully.");
+    printSafe("[ThreadPool] Accepted tasks: " + std::to_string(acceptedTasks));
+    printSafe("[ThreadPool] Rejected tasks: " + std::to_string(rejectedTasks));
 }
 
-void ThreadPool::submitTask(const Task& task)
+bool ThreadPool::submitTask(const Task& task)
 {
     {
         std::lock_guard<std::mutex> lock(mutex);
@@ -71,16 +76,32 @@ void ThreadPool::submitTask(const Task& task)
         if (!initialized || terminated)
         {
             printSafe("[ThreadPool] Cannot add task: pool is not active.");
-            return;
+            return false;
+        }
+
+        if (queueTotalSeconds + task.durationSeconds > maxQueueSeconds)
+        {
+            rejectedTasks++;
+
+            printSafe("[Main] Task rejected: id = " + std::to_string(task.id) +
+                ", duration = " + std::to_string(task.durationSeconds) +
+                " sec, queue total would become " +
+                std::to_string(queueTotalSeconds + task.durationSeconds) + " sec");
+
+            return false;
         }
 
         taskQueue.push(task);
+        queueTotalSeconds += task.durationSeconds;
+        acceptedTasks++;
+
+        printSafe("[Main] Task added: id = " + std::to_string(task.id) +
+            ", duration = " + std::to_string(task.durationSeconds) +
+            " sec, queue total = " + std::to_string(queueTotalSeconds) + " sec");
     }
 
-    printSafe("[Main] Task added: id = " + std::to_string(task.id) +
-        ", duration = " + std::to_string(task.durationSeconds) + " sec");
-
     cv.notify_one();
+    return true;
 }
 
 void ThreadPool::workerRoutine(size_t workerId)
@@ -107,6 +128,11 @@ void ThreadPool::workerRoutine(size_t workerId)
 
             currentTask = taskQueue.top();
             taskQueue.pop();
+            queueTotalSeconds -= currentTask.durationSeconds;
+
+            printSafe("[Worker " + std::to_string(workerId) + "] Took task " +
+                std::to_string(currentTask.id) + " from queue. Queue total now = " +
+                std::to_string(queueTotalSeconds) + " sec");
         }
 
         printSafe("[Worker " + std::to_string(workerId) + "] Started task " +
