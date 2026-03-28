@@ -33,9 +33,10 @@ public:
 
     bool submitTask(const Task& task);
 
+    void printSafe(const std::string& message);
+
 private:
     void workerRoutine(size_t workerId);
-    void printSafe(const std::string& message);
 
 private:
     std::vector<std::thread> workers;

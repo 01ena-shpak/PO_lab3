@@ -4,6 +4,8 @@
 #include <chrono>
 #include <cstdlib>
 #include <ctime>
+#include <vector>
+#include <atomic>
 
 Task generateRandomTask(int taskId)
 {
@@ -13,27 +15,64 @@ Task generateRandomTask(int taskId)
     return task;
 }
 
-int main()
+void producerRoutine(ThreadPool& pool, int producerId, int tasksToGenerate, std::atomic<int>& globalTaskId)
 {
-    std::srand(std::time(nullptr));
-
-    ThreadPool pool;
-    pool.initialize(4);
-
-    for (int i = 1; i <= 12; ++i)
+    for (int i = 0; i < tasksToGenerate; ++i)
     {
-        Task task = generateRandomTask(i);
+        int newTaskId = ++globalTaskId;
+        Task task = generateRandomTask(newTaskId);
+
+        pool.printSafe("[Producer " + std::to_string(producerId) +
+            "] Generated task " + std::to_string(task.id) +
+            " with duration " + std::to_string(task.durationSeconds) + " sec");
+
         pool.submitTask(task);
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(150));
+        std::this_thread::sleep_for(std::chrono::milliseconds(300 + std::rand() % 500));
     }
 
-    std::cout << "[Main] Waiting 30 seconds for tasks to be processed...\n";
-    std::this_thread::sleep_for(std::chrono::seconds(30));
+    pool.printSafe("[Producer " + std::to_string(producerId) + "] Finished generating tasks.");
+}
 
-    std::cout << "[Main] Now terminating pool...\n";
+int main()
+{
+    std::srand(static_cast<unsigned>(std::time(nullptr)));
+
+    ThreadPool pool;
+
+    pool.initialize(4);
+
+    const int producerCount = 3;
+    const int tasksPerProducer = 6;
+
+    std::atomic<int> globalTaskId = 0;
+    std::vector<std::thread> producers;
+
+    for (int i = 0; i < producerCount; ++i)
+    {
+        producers.emplace_back(
+            producerRoutine,
+            std::ref(pool),
+            i + 1,
+            tasksPerProducer,
+            std::ref(globalTaskId)
+        );
+    }
+
+    for (std::thread& producer : producers)
+    {
+        if (producer.joinable())
+        {
+            producer.join();
+        }
+    }
+
+    pool.printSafe("[Main] All producers finished. Waiting 35 seconds for workers...");
+    std::this_thread::sleep_for(std::chrono::seconds(35));
+
+    pool.printSafe("[Main] Now terminating pool...");
     pool.terminate();
 
-    std::cout << "[Main] Program finished.\n";
+    pool.printSafe("[Main] Program finished.");
     return 0;
 }
