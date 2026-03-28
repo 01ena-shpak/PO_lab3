@@ -36,7 +36,7 @@ void producerRoutine(ThreadPool& pool, int producerId, int tasksToGenerate, std:
 
 int main()
 {
-    std::srand(static_cast<unsigned>(std::time(nullptr)));
+    std::srand(std::time(nullptr));
 
     ThreadPool pool;
 
