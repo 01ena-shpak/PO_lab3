@@ -43,8 +43,6 @@ void producerRoutine(ThreadPool& pool, int producerId, int tasksToGenerate, std:
 
 int main()
 {
-    std::srand(static_cast<unsigned>(std::time(nullptr)));
-
     {
         ThreadPool pool;
         pool.printSafe("========== 1) PAUSE/RESUME + GRACEFUL SHUTDOWN ==========");
