@@ -21,10 +21,18 @@ Task generateRandomTask(int taskId)
     return task;
 }
 
-void producerRoutine(ThreadPool& pool, int producerId, int tasksToGenerate, std::atomic<int>& globalTaskId)
+void producerRoutine(ThreadPool& pool, int producerId, int tasksToGenerate,
+    std::atomic<int>& globalTaskId, std::atomic<bool>& stopProducers)
 {
     for (int i = 0; i < tasksToGenerate; ++i)
     {
+        if (stopProducers)
+        {
+            pool.printSafe("[Producer " + std::to_string(producerId) +
+                "] Stopped by graceful shutdown signal.");
+            break;
+        }
+
         int newTaskId = ++globalTaskId;
         Task task = generateRandomTask(newTaskId);
 
@@ -50,9 +58,12 @@ int main()
         pool.initialize(4);
 
         const int producerCount = 3;
-        const int tasksPerProducer = 6;
+        const int tasksPerProducer = 12;
 
         std::atomic<int> globalTaskId = 0;
+
+        std::atomic<bool> stopProducers = false;
+
         std::vector<std::thread> producers;
 
         for (int i = 0; i < producerCount; ++i)
@@ -62,17 +73,23 @@ int main()
                 std::ref(pool),
                 i + 1,
                 tasksPerProducer,
-                std::ref(globalTaskId)
+                std::ref(globalTaskId),
+                std::ref(stopProducers)
             );
         }
 
         std::this_thread::sleep_for(std::chrono::seconds(3));
-        pool.printSafe("[Main] Pausing thread pool for 5 seconds...");
+        pool.printSafe("[Main] Pausing thread pool for 3 seconds...");
         pool.pause();
 
-        std::this_thread::sleep_for(std::chrono::seconds(5));
+        std::this_thread::sleep_for(std::chrono::seconds(3));
         pool.printSafe("[Main] Resuming thread pool...");
         pool.resume();
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        pool.printSafe("[Main] Starting graceful shutdown...");
+        stopProducers = true;
+        pool.shutdownGraceful();
 
         for (std::thread& producer : producers)
         {
@@ -81,15 +98,6 @@ int main()
                 producer.join();
             }
         }
-
-        pool.printSafe("[Main] All producers finished. Waiting until workers complete all accepted tasks...");
-        while (!pool.isWorkCompleted())
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(200));
-        }
-
-        pool.printSafe("[Main] All accepted tasks are completed. Starting graceful shutdown...");
-        pool.shutdownGraceful();
 
         pool.printStatistics(producerCount);
         pool.printSafe("[Main] 1) finished.");
@@ -105,6 +113,9 @@ int main()
         const int tasksPerProducer = 5;
 
         std::atomic<int> globalTaskId = 0;
+
+        std::atomic<bool> stopProducers = false;
+
         std::vector<std::thread> producers;
 
         for (int i = 0; i < producerCount; ++i)
@@ -114,12 +125,14 @@ int main()
                 std::ref(pool),
                 i + 1,
                 tasksPerProducer,
-                std::ref(globalTaskId)
+                std::ref(globalTaskId),
+                std::ref(stopProducers)
             );
         }
 
-        std::this_thread::sleep_for(std::chrono::seconds(13));
+        std::this_thread::sleep_for(std::chrono::seconds(12));
         pool.printSafe("[Main] Starting immediate shutdown...");
+        stopProducers = true;
         pool.shutdownImmediate();
 
         for (std::thread& producer : producers)
